@@ -298,7 +298,7 @@ def test_calcular_pension():
     assert resultado_borderline['elegible'] == True, "Debe ser elegible con 15 años"
     
     # Test truly non-eligible: age 52 with only 2 years service (will have 15 at 65 - borderline)
-    # Age 53 with 1 year = 13 years at 65 - NOT eligible
+    # Age 53 with 1 year service = 1 + (65-53) = 1 + 12 = 13 years at 65 - NOT eligible (needs 15)
     resultado_no_elegible = calcular_pension(53, 1, 30000, 'M', df_demo)
     assert resultado_no_elegible['elegible'] == False, "No debe ser elegible (solo 13 años al retiro)"
     assert resultado_no_elegible['pv_pension'] == 0, "PV debe ser 0 para no elegible"

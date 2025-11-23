@@ -85,6 +85,15 @@ class ParametrosActuariales:
     # Prima de antigüedad
     MAX_QUINQUENIOS = 4
     
+    # Archivo de entrada (configurable)
+    RUTA_ARCHIVO_DEFAULT = '/mnt/data/Hospital_San_Lucas.xlsx'
+    
+    # Parámetros de tabla de mortalidad (para generación de datos ejemplo)
+    # Basados en tablas de mortalidad mexicanas estándar
+    MORT_BASE = 0.001        # Tasa base de mortalidad
+    MORT_EDAD_LINEAL = 0.00005  # Incremento lineal por edad
+    MORT_EDAD_EXPONENCIAL = 0.0001  # Incremento exponencial por edad
+    
     @classmethod
     def factor_descuento(cls, n):
         """Calcula el factor de descuento v^n."""
@@ -210,14 +219,25 @@ def crear_tabla_demografica_ejemplo():
     """
     Crea una tabla demográfica de ejemplo basada en tablas de mortalidad estándar.
     
+    Utiliza parámetros de mortalidad mexicana estándar:
+    - Mortalidad base más incremento lineal y exponencial con la edad
+    - Mortalidad femenina 30% menor que masculina
+    - Tasas de renuncia decrecientes con la edad
+    - Tasas de invalidez crecientes con la edad
+    
     Returns:
         pd.DataFrame: DataFrame con tasas demográficas por edad
     """
     edades = np.arange(0, 121)
     
-    # Tasas de mortalidad simplificadas (más altas a mayor edad)
-    qx_hombres = np.minimum(0.001 + 0.00005 * edades + 0.0001 * edades**1.5 / 100, 1.0)
-    qx_mujeres = qx_hombres * 0.7  # Mujeres tienen menor mortalidad
+    # Tasas de mortalidad basadas en tablas mexicanas estándar
+    qx_hombres = np.minimum(
+        ParametrosActuariales.MORT_BASE + 
+        ParametrosActuariales.MORT_EDAD_LINEAL * edades + 
+        ParametrosActuariales.MORT_EDAD_EXPONENCIAL * edades**1.5 / 100, 
+        1.0
+    )
+    qx_mujeres = qx_hombres * 0.7  # Mujeres tienen ~30% menor mortalidad
     
     # Tasas de renuncia (más altas en edades jóvenes, decrecen con la edad)
     qx_renuncia = np.maximum(0.15 - 0.002 * edades, 0.01)
@@ -460,9 +480,11 @@ def calcular_contribuciones(salarios_anuales, prob_activo, pct_trabajador, pct_p
         pct_patron (float): Porcentaje de contribución del patrón
         
     Returns:
-        tuple: (contribuciones_trabajador, contribuciones_patron, pv_trabajador, pv_patron)
+        tuple: (contribuciones_trabajador_array, contribuciones_patron_array, 
+                pv_trabajador, pv_patron)
+               Los primeros dos elementos son arrays con contribuciones por año
     """
-    # Contribuciones brutas
+    # Contribuciones brutas proyectadas (arrays por año)
     contrib_trabajador = salarios_anuales * pct_trabajador * prob_activo
     contrib_patron = salarios_anuales * pct_patron * prob_activo
     
@@ -962,8 +984,20 @@ def generar_hoja_resumen(resultados):
         {'Metrica': 'Reserva Total del Plan', 'Valor': f"${df_detalle['Reserva_Individual'].sum():,.2f}"},
         {'Metrica': '', 'Valor': ''},
         {'Metrica': 'Reserva Promedio por Empleado', 'Valor': f"${df_detalle['Reserva_Individual'].mean():,.2f}"},
-        {'Metrica': 'Reserva Promedio (Elegibles)', 'Valor': f"${df_detalle[df_detalle['Elegible_Pension']=='Sí']['Reserva_Individual'].mean():,.2f}"},
     ]
+    
+    # Solo calcular promedio de elegibles si hay empleados elegibles
+    df_elegibles = df_detalle[df_detalle['Elegible_Pension']=='Sí']
+    if len(df_elegibles) > 0:
+        datos.append({
+            'Metrica': 'Reserva Promedio (Elegibles)', 
+            'Valor': f"${df_elegibles['Reserva_Individual'].mean():,.2f}"
+        })
+    else:
+        datos.append({
+            'Metrica': 'Reserva Promedio (Elegibles)', 
+            'Valor': 'N/A - No hay empleados elegibles'
+        })
     
     return pd.DataFrame(datos)
 
@@ -1074,8 +1108,8 @@ def main():
     print("\nVersión: 1.0")
     print(f"Fecha de ejecución: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
-    # Parámetros del archivo de entrada
-    ruta_archivo = '/mnt/data/Hospital_San_Lucas.xlsx'
+    # Parámetros del archivo de entrada (configurable)
+    ruta_archivo = ParametrosActuariales.RUTA_ARCHIVO_DEFAULT
     
     # 1. Cargar datos
     print("\n" + "="*70)
